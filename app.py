@@ -1,7 +1,14 @@
 from fastapi import FastAPI, UploadFile, File
 from PyPDF2 import PdfReader
 import io
+from sentence_transformers import SentenceTransformer
+
 app = FastAPI()
+
+model = SentenceTransformer("all-MiniLM-L6-v2")
+
+stored_chunks = []
+stored_embeddings = None
 
 @app.get("/")
 def home():
@@ -26,9 +33,20 @@ async def upload(file: UploadFile = File(...)):
         for i in range(0, len(text), chunk_size):
             chunks.append(text[i : i + chunk_size ])
         return chunks
+    
     chunk_size = 300
     chunks = chunk(text,chunk_size)
+
+    global stored_chunks 
+    global stored_embeddings
+
+    stored_chunks = chunks
+    stored_embeddings = model.encode(chunks)
     
+    print(len(stored_chunks))
+    print(len(stored_embeddings))
+    
+
     return {
         "filename":file.filename,
         "size":len(content),
