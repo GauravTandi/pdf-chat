@@ -2,6 +2,8 @@ from fastapi import FastAPI, UploadFile, File
 from PyPDF2 import PdfReader
 import io
 from sentence_transformers import SentenceTransformer
+from pydantic import BaseModel
+from sklearn.metrics.pairwise import cosine_similarity
 
 app = FastAPI()
 
@@ -9,6 +11,27 @@ model = SentenceTransformer("all-MiniLM-L6-v2")
 
 stored_chunks = []
 stored_embeddings = None
+
+
+class QuestionRequest(BaseModel):
+    question: str
+
+@app.post("/ask")
+def question_accept(question: QuestionRequest):
+
+    question_embedding = model.encode([question.question])
+
+    scores = cosine_similarity(
+        question_embedding,
+        stored_embeddings
+    )
+
+    best_index = scores.argmax()
+
+    return {
+    "best_chunk": stored_chunks[best_index]
+    
+    }   
 
 @app.get("/")
 def home():
