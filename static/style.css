@@ -1,0 +1,17 @@
+body {
+    font-family: Arial, sans-serif;
+    max-width: 800px;
+    margin: auto;
+}
+
+h1{
+    text-align: center;
+}
+
+input{
+    width: 50%;
+}
+
+button{
+    padding: 10px;
+}

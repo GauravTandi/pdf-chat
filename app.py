@@ -7,6 +7,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -17,6 +18,14 @@ genai.configure(
 gemini = genai.GenerativeModel("gemini-2.5-flash")
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://super-space-system-r44ggx4ppp77cp954-5500.app.github.dev"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
