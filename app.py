@@ -4,18 +4,8 @@ import io
 from sentence_transformers import SentenceTransformer
 from pydantic import BaseModel
 from sklearn.metrics.pairwise import cosine_similarity
-import os
-from dotenv import load_dotenv
-import google.generativeai as genai
 from fastapi.middleware.cors import CORSMiddleware
-
-load_dotenv()
-
-genai.configure(
-    api_key=os.getenv("GEMINI_API_KEY")
-)
-
-gemini = genai.GenerativeModel("gemini-2.5-flash")
+import requests
 
 app = FastAPI()
 
@@ -52,7 +42,7 @@ async def upload(file: UploadFile = File(...)):
     text = ""
     for page in reader.pages:
         page_text = page.extract_text()
-        if page_text: #text += page_text or ""
+        if page_text: 
             text += page_text
     
     def chunk(text, chunk_size):
@@ -69,9 +59,6 @@ async def upload(file: UploadFile = File(...)):
 
     stored_chunks = chunks
     stored_embeddings = model.encode(chunks)
-    
-    print(len(stored_chunks))
-    print(len(stored_embeddings))
     
 
     return {
@@ -95,23 +82,37 @@ def question_accept(question: QuestionRequest):
         stored_embeddings
     )
 
-    best_index = scores.argmax()
+    best_index = int(scores.argmax())
 
     best_chunk = stored_chunks[best_index]
 
     prompt = f"""
-Answer the user's question using the context below.
+    Answer the user's question using the context below.
 
-Context:
-{best_chunk}
+    Context:
+    {best_chunk}
 
-Question:
-{question.question}
-"""
+    Question:
+    {question.question}
+    """
 
-    response = gemini.generate_content(prompt)
+    response = requests.post(
+        "https://super-space-system-r44ggx4ppp77cp954-11434.app.github.dev/api/generate",
+        json={
+            "model": "tinyllama",
+            "prompt": prompt,
+            "stream": False
+        }
+    )
+
+
+    data = response.json()
+    answer = data["response"]
+
 
     return {
-        "answer": response.text,
-        "context": best_chunk
+        "answer": answer,
+        "context": best_chunk,
+        "question": question.question,
+        "best_index": best_index
     }
