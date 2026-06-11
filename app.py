@@ -3,9 +3,9 @@ from PyPDF2 import PdfReader
 import io
 from sentence_transformers import SentenceTransformer
 from pydantic import BaseModel
-from sklearn.metrics.pairwise import cosine_similarity
 from fastapi.middleware.cors import CORSMiddleware
 import requests
+import chromadb
 
 app = FastAPI()
 
@@ -19,8 +19,9 @@ app.add_middleware(
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-stored_chunks = []
-stored_embeddings = None
+client = chromadb.PersistentClient(path="database")
+collection = client.get_or_create_collection(name="pdf_chunks")
+
 
 
 class QuestionRequest(BaseModel):
@@ -35,6 +36,15 @@ def home():
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
+    global collection
+
+    try:
+        client.delete_collection("pdf_chunks")
+    except:
+        pass
+
+    collection = client.get_or_create_collection("pdf_chunks")
+
     content = await file.read()
     pdf_file = io.BytesIO(content)
     reader = PdfReader(pdf_file)
@@ -54,12 +64,20 @@ async def upload(file: UploadFile = File(...)):
     chunk_size = 300
     chunks = chunk(text,chunk_size)
 
-    global stored_chunks 
-    global stored_embeddings
+    embeddings = model.encode(chunks)
 
-    stored_chunks = chunks
-    stored_embeddings = model.encode(chunks)
-    
+    for i, chunk in enumerate(chunks):
+        collection.add(
+            documents=[chunk],
+            embeddings=[embeddings[i]],
+            ids=[f"{file.filename}chunks_{i}"],
+            metadatas=[{"pdf": file.filename, "chunk_id": i}]
+        )
+    print("*****************")
+    print("*****************")
+    print(collection.count())
+    print("*****************")
+    print("*****************")
 
     return {
         "filename":file.filename,
@@ -72,19 +90,17 @@ async def upload(file: UploadFile = File(...)):
 @app.post("/ask")
 def question_accept(question: QuestionRequest):
 
-    if not stored_chunks:
-        return {"error": "Upload a PDF first"}
-
+    if collection.count() == 0:
+        return {"error": "Upload a pdf first"}
+    
     question_embedding = model.encode([question.question])
 
-    scores = cosine_similarity(
-        question_embedding,
-        stored_embeddings
+    results = collection.query(
+        query_embeddings=[question_embedding[0]],
+        n_results=1
     )
 
-    best_index = int(scores.argmax())
-
-    best_chunk = stored_chunks[best_index]
+    best_chunk = results["documents"][0][0]
 
     prompt = f"""
     Answer the user's question using the context below.
@@ -113,6 +129,5 @@ def question_accept(question: QuestionRequest):
     return {
         "answer": answer,
         "context": best_chunk,
-        "question": question.question,
-        "best_index": best_index
+        "question": question.question
     }
