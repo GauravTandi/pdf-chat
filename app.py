@@ -97,10 +97,12 @@ def question_accept(question: QuestionRequest):
 
     results = collection.query(
         query_embeddings=[question_embedding[0]],
-        n_results=1
+        n_results=3
     )
 
-    best_chunk = results["documents"][0][0]
+    chunks = results["documents"][0]
+    scores = results["distances"][0]
+    best_chunk = "\n\n".join(chunks)
 
     prompt = f"""
     Answer the user's question using the context below.
@@ -127,7 +129,9 @@ def question_accept(question: QuestionRequest):
 
 
     return {
-        "answer": answer,
-        "context": best_chunk,
-        "question": question.question
+        "question": question.question,
+        "gen_answer": answer,
+        "source": chunks,
+        "scores": results["distances"][0]
+        
     }
